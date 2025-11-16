@@ -1,70 +1,61 @@
-import os
-import telebot
-import re
+import logging
+from telegram import Update
+from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-ALLOWED_CHAT_IDS = [int(cid) for cid in os.environ.get("ALLOWED_CHAT_IDS", "").split(",")]
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 
-bot = telebot.TeleBot(BOT_TOKEN)
+# -------- BANGLA AUTO REPLY FUNCTION -----------
+def bangla_reply(text):
+    text = text.lower()
 
-# ==========================
-# BANGLA AUTO REPLY ENGINE
-# ==========================
+    if "কেমন আছ" in text:
+        return "আলহামদুলিল্লাহ ভালো আছি 😊 আপনি কেমন আছেন?"
+    if "হাই" in text or "হ্যালো" in text:
+        return "জী বলুন, কীভাবে সাহায্য করতে পারি?"
+    if "ধন্যবাদ" in text:
+        return "স্বাগতম ❤️"
+    if "সালাম" in text:
+        return "ওয়া আলাইকুমুস সালাম 🌸"
+    if "কি কর" in text:
+        return "আপনার মেসেজগুলোর উত্তর দিচ্ছি 😄"
 
-def get_reply(text):
-
-    msg = text.lower()
-
-    # Greeting
-    if any(k in msg for k in ["hi", "hello", "salam", "assalamu", "আসসালামু", "সালাম"]):
-        return "ওয়ালাইকুম সালাম! 😊 কিভাবে সাহায্য করতে পারি?"
-
-    # How are you
-    if any(k in msg for k in ["কেমন আছ", "how are you", "কি খবর"]):
-        return "আলহামদুলিল্লাহ ভালো আছি ভাই, আপনি কেমন আছেন?"
-
-    # Link related
-    if "লিংক" in msg or "link" in msg:
-        return "আপনার কোন লিংক সমস্যা হচ্ছে? বিস্তারিত বলুন।"
-
-    # Help
-    if any(k in msg for k in ["help", "সাহায্য", "হেল্প"]):
-        return "জি ভাই সাহায্য লাগলে বলুন, আমি আছি 😊"
-
-    # Group rules
-    if any(k in msg for k in ["রুল", "rules"]):
-        return "গ্রুপের মূল নিয়ম:\n1️⃣ সবাই ভদ্র ভাষায় কথা বলবেন\n2️⃣ স্প্যাম বা অপ্রয়োজনীয় লিংক শেয়ার করবেন না\n3️⃣ এডমিনের কথা সম্মান করবেন 😊"
-
-    # Thanks
-    if any(k in msg for k in ["ধন্যবাদ", "thank", "thanks"]):
-        return "স্বাগতম ভাই 😊"
-
-    # Bye
-    if any(k in msg for k in ["bye", "বিদায়"]):
-        return "আচ্ছা ভাই দেখা হবে ইনশাআল্লাহ 😊"
-
-    # Default reply
-    return "জি ভাই, বুঝেছি। একটু বিস্তারিত বলবেন?"
+    return "বুঝেছি! আর কিছু জানতে চান? 😊"
 
 
-# ==========================
-# MESSAGE HANDLER
-# ==========================
+# ----------- MESSAGE HANDLER ----------------
+async def auto_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
-@bot.message_handler(func=lambda m: True, content_types=['text'])
-def auto_reply(message):
+    if update.message is None:
+        return
 
-    if message.chat.id not in ALLOWED_CHAT_IDS:
-        return  # অন্য গ্রুপে কাজ করবে না
+    user_text = update.message.text
 
-    if message.from_user.is_bot:
-        return  # বটের মেসেজে রিপ্লাই করবে না
-
-    text = message.text
-    reply = get_reply(text)
-
-    bot.reply_to(message, reply)
+    # শুধু বাংলা অক্ষর আছে কিনা
+    if any("অ" <= c <= "হ" for c in user_text):
+        reply = bangla_reply(user_text)
+        await update.message.reply_text(reply)
 
 
-print("🤖 Auto Reply Admin Bot Running...")
-bot.infinity_polling()
+# ----------------- MAIN ---------------------
+async def main():
+    import os
+    BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+    if not BOT_TOKEN:
+        raise RuntimeError("BOT_TOKEN missing in environment!")
+
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, auto_reply))
+
+    print("Bot running...")
+
+    await app.run_polling()
+
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
